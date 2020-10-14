@@ -28,6 +28,7 @@ func main() {
 		cc, ok := cache[encoded]
 		if ok {
 			w.Write(cc)
+			l.RUnlock()
 			return
 		}
 		l.RUnlock()
