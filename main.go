@@ -25,12 +25,12 @@ func main() {
 		}
 		encoded := base64.StdEncoding.EncodeToString(body)
 		l.RLock()
-		defer l.RUnlock()
 		cc, ok := cache[encoded]
 		if ok {
 			w.Write(cc)
 			return
 		}
+		l.RUnlock()
 		m := new(dns.Msg)
 		err = m.Unpack(body)
 		if err != nil {
@@ -46,8 +46,8 @@ func main() {
 			panic(err)
 		}
 		l.Lock()
-		defer l.Unlock()
 		cache[encoded] = b
+		l.Unlock()
 		w.Write(b)
 	})
 
