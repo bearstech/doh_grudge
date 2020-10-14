@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/miekg/dns"
@@ -15,6 +16,10 @@ func main() {
 	c := new(dns.Client)
 	cache := make(map[string]*dns.Msg)
 	l := sync.RWMutex{}
+	resolver := os.Getenv("DNS")
+	if resolver == "" {
+		resolver = "1.1.1.1:53"
+	}
 
 	http.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
@@ -46,7 +51,7 @@ func main() {
 		}
 		l.RUnlock()
 		fmt.Println("Miss")
-		in, rtt, err := c.Exchange(m, "1.1.1.1:53")
+		in, rtt, err := c.Exchange(m, resolver)
 		if err != nil {
 			panic(err)
 		}
