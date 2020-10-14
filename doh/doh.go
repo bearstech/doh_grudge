@@ -26,6 +26,10 @@ func New(resolver string) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		panic(err)
