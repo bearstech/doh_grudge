@@ -1,8 +1,10 @@
 package doh
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"sync"
 
@@ -26,18 +28,38 @@ func New(resolver string) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != "POST" && r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		panic(err)
+	var body []byte
+	var err error
+	if r.Method == "GET" {
+		params, ok := r.URL.Query()["dns"]
+		if !ok || len(params) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		_, err = base64.RawURLEncoding.Decode([]byte(params[0]), body)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	} else {
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 	m := new(dns.Msg)
 	err = m.Unpack(body)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 	mm := m.Copy()
 	mm.Id = 0
@@ -50,7 +72,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Id = m.Id
 		b, err := r.Pack()
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		w.Write(b)
 		s.lock.RUnlock()
@@ -61,15 +85,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Miss")
 	in, rtt, err := s.client.Exchange(m, s.resolver)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	fmt.Println(rtt)
 	b, err := in.Pack()
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	s.lock.Lock()
 	s.cache[k] = in
 	s.lock.Unlock()
+	w.Header().Add("Content-Type", "application/dns-message")
 	w.Write(b)
 }
