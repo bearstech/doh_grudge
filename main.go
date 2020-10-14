@@ -13,7 +13,7 @@ import (
 func main() {
 
 	c := new(dns.Client)
-	cache := make(map[string][]byte)
+	cache := make(map[string]*dns.Msg)
 	l := sync.RWMutex{}
 
 	http.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,13 @@ func main() {
 		l.RLock()
 		cc, ok := cache[k]
 		if ok {
-			w.Write(cc)
+			r := cc.Copy()
+			r.Id = m.Id
+			b, err := r.Pack()
+			if err != nil {
+				panic(err)
+			}
+			w.Write(b)
 			l.RUnlock()
 			fmt.Println("Hit")
 			return
@@ -50,7 +56,7 @@ func main() {
 			panic(err)
 		}
 		l.Lock()
-		cache[k] = b
+		cache[k] = in
 		l.Unlock()
 		w.Write(b)
 	})
