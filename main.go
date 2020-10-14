@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,7 +14,6 @@ func main() {
 
 	c := new(dns.Client)
 	cache := make(map[string][]byte)
-	fmt.Println(cache)
 	l := sync.RWMutex{}
 
 	http.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
@@ -23,20 +21,25 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		encoded := base64.StdEncoding.EncodeToString(body)
-		l.RLock()
-		cc, ok := cache[encoded]
-		if ok {
-			w.Write(cc)
-			l.RUnlock()
-			return
-		}
-		l.RUnlock()
 		m := new(dns.Msg)
 		err = m.Unpack(body)
 		if err != nil {
 			panic(err)
 		}
+		mm := m.Copy()
+		mm.Id = 0
+		k := mm.String()
+		fmt.Println(k)
+		l.RLock()
+		cc, ok := cache[k]
+		if ok {
+			w.Write(cc)
+			l.RUnlock()
+			fmt.Println("Hit")
+			return
+		}
+		l.RUnlock()
+		fmt.Println("Miss")
 		in, rtt, err := c.Exchange(m, "1.1.1.1:53")
 		if err != nil {
 			panic(err)
@@ -47,7 +50,7 @@ func main() {
 			panic(err)
 		}
 		l.Lock()
-		cache[encoded] = b
+		cache[k] = b
 		l.Unlock()
 		w.Write(b)
 	})
